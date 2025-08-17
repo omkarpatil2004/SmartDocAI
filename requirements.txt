@@ -5,7 +5,6 @@ easyocr
 opencv-python
 PyPDF2
 pdfplumber
-moviepy
 ffmpeg-python
 faster-whisper
 SpeechRecognition
@@ -15,6 +14,3 @@ torch
 sentencepiece
 numpy
 Pillow
-openai-whisper
-
-
