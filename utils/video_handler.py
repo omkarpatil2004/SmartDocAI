@@ -1,36 +1,39 @@
+import ffmpeg
 import os
-import subprocess
-from faster_whisper import WhisperModel
 
-def extract_audio_from_video(video_path, audio_path="temp_audio.mp3"):
+def extract_audio_from_video(video_path, audio_path="temp_audio.wav"):
     """
-    Extracts audio from video using ffmpeg
+    Extracts audio from a video file using ffmpeg-python (no subprocess).
+    Outputs audio in WAV format, mono, 16kHz (good for Whisper/STT).
     """
-    command = [
-        "ffmpeg",
-        "-i", video_path,
-        "-vn",  # no video
-        "-acodec", "mp3",
-        audio_path,
-        "-y"  # overwrite if exists
-    ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return audio_path
+    try:
+        (
+            ffmpeg
+            .input(video_path)                                  # input video
+            .output(audio_path, format="wav", acodec="pcm_s16le", ac=1, ar="16000")
+            .overwrite_output()                                 # overwrite if exists
+            .run(quiet=True)                                    # run silently
+        )
+        return audio_path
+    except Exception as e:
+        raise RuntimeError(f"FFmpeg extraction failed: {e}")
 
-def transcribe_video(video_path):
+
+def transcribe_video(video_path, model=None):
     """
-    Extract audio from video and transcribe it using faster-whisper
+    Extract audio from video and transcribe it using Whisper or any STT model.
     """
     audio_path = extract_audio_from_video(video_path)
 
-    # Load Whisper model
-    model = WhisperModel("base", device="cpu", compute_type="int8")
+    if model is None:
+        import whisper
+        model = whisper.load_model("base")   # load small Whisper model by default
 
-    segments, _ = model.transcribe(audio_path)
-    transcription = " ".join([segment.text for segment in segments])
+    result = model.transcribe(audio_path)
+    text = result["text"]
 
     # cleanup
     if os.path.exists(audio_path):
         os.remove(audio_path)
 
-    return transcription.strip()
+    return text
