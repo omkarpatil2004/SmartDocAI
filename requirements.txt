@@ -15,3 +15,6 @@ torch
 sentencepiece
 numpy
 Pillow
+openai-whisper
+
+
