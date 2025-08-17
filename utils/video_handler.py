@@ -1,14 +1,19 @@
 import ffmpeg
 import os
 import tempfile
+import shutil
 
-def extract_audio_from_video(video_path, audio_path="temp_audio.wav"):
+def extract_audio_from_video(video_path, audio_path=None):
     """
     Extracts audio from a video file using ffmpeg-python.
-    Saves audio as mono 16kHz WAV for Whisper.
+    Ensures proper handling on Streamlit Cloud.
     """
+    if audio_path is None:
+        tmp_audio = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        audio_path = tmp_audio.name
+        tmp_audio.close()
+
     try:
-        # Use ffmpeg to convert video -> audio
         (
             ffmpeg
             .input(video_path)
@@ -21,16 +26,24 @@ def extract_audio_from_video(video_path, audio_path="temp_audio.wav"):
         raise RuntimeError(f"FFmpeg extraction failed: {e}")
 
 
-def transcribe_video(video_path, model=None):
+def transcribe_video(video_file, model=None):
     """
-    Extract audio from video and transcribe it using Whisper.
+    Takes a Streamlit uploaded file object or file path,
+    saves it to a temp file, extracts audio, and transcribes.
     """
-    # Create temp file for audio
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_audio:
-        audio_path = tmp_audio.name
+    # 1️⃣ Save uploaded video file to temp path
+    if hasattr(video_file, "read"):  # file-like object from st.file_uploader
+        tmp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        shutil.copyfileobj(video_file, tmp_video)
+        tmp_video_path = tmp_video.name
+        tmp_video.close()
+    else:
+        tmp_video_path = video_file  # already a path
 
-    audio_path = extract_audio_from_video(video_path, audio_path)
+    # 2️⃣ Extract audio
+    audio_path = extract_audio_from_video(tmp_video_path)
 
+    # 3️⃣ Load Whisper and transcribe
     if model is None:
         import whisper
         model = whisper.load_model("base")
@@ -38,8 +51,10 @@ def transcribe_video(video_path, model=None):
     result = model.transcribe(audio_path)
     text = result["text"]
 
-    # cleanup temp file
+    # 4️⃣ Cleanup
     if os.path.exists(audio_path):
         os.remove(audio_path)
+    if os.path.exists(tmp_video_path):
+        os.remove(tmp_video_path)
 
     return text
